@@ -10,9 +10,24 @@ import {
   SidebarMenuButton,
   SidebarHeader,
   Sidebar,
+  SidebarFooter,
+  SidebarRail,
 } from "./ui/sidebar";
+import { NavUser } from "./nav-user";
+import { createClient } from "@/lib/supabase/server";
 
-function AppSidebar() {
+async function AppSidebar() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  console.log(user);
+
+  const userData = {
+    name: user?.user_metadata.full_name,
+    email: user?.email || '',
+    avatar: user?.user_metadata.avatar_url,
+  }
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -32,6 +47,7 @@ function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Application</SidebarGroupLabel>
@@ -51,6 +67,11 @@ function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter>
+        <NavUser user={userData} />
+      </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

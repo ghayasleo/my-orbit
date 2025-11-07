@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Protected routes that require authentication
-  if (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname === '/') {
+  if (!request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname === '/') {
     if (!user) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
@@ -49,5 +49,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|auth/callback).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|api/auth/callback).*)'],
 }
