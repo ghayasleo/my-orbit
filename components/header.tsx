@@ -34,7 +34,7 @@ function Header({ breadcrumbs }: HeaderProps) {
                       <a
                         data-slot="breadcrumb-link"
                         className="hover:text-foreground transition-colors"
-                        href={val.href}
+                        href={val.url}
                       >
                         {val.title}
                       </a>
