@@ -10,8 +10,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
@@ -31,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { createClient } from "@/lib/supabase/client";
+import { useCurrency } from "@/hooks/use-currency";
 
 export function NavUser({
   user,
@@ -44,6 +50,7 @@ export function NavUser({
   const { isMobile } = useSidebar();
   const { signOut } = useAuth();
   const router = useRouter();
+  const { currency, setCurrency, currencies } = useCurrency();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -60,7 +67,9 @@ export function NavUser({
     setIsDeleting(true);
     try {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("No active session");
       }
@@ -138,6 +147,26 @@ export function NavUser({
                   </div>
                 </div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <span>Set Currency {!!currency && `(${currency})`}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-100 overflow-auto">
+                  <DropdownMenuRadioGroup
+                    value={currency}
+                    onValueChange={(currency) => setCurrency(currency)}
+                  >
+                    {currencies.map((currency, id) => (
+                      <DropdownMenuRadioItem key={id} value={currency.code}>
+                        <span>
+                          {currency.name} ({currency.code})
+                        </span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
