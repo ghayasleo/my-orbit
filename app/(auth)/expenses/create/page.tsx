@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useFormik } from "formik";
+import * as yup from "yup";
 import Header from "@/components/header";
 import { createCrudBreadcrumb, CRUD, expensesPage } from "@/constants/pages";
 import { Button } from "@/components/ui/button";
@@ -29,16 +30,77 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { expenseService } from "@/services/expense-service";
+import { useUser } from "@/hooks/use-user";
+import { toast } from "sonner";
+
+const validationSchema = yup.object({
+  title: yup.string().required("Title is required"),
+  amount: yup
+    .number()
+    .positive("Amount must be positive")
+    .required("Amount is required"),
+  category: yup.string().required("Category is required"),
+  date: yup.date().required("Date is required"),
+  notes: yup.string(),
+});
 
 export default function CreateExpensePage() {
   const router = useRouter();
-  const [date, setDate] = useState<Date>();
+  const { user, isLoading: userLoading } = useUser();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Expense created");
-    router.push("/expenses");
+  const formik = useFormik({
+    initialValues: {
+      title: "",
+      amount: "",
+      category: "",
+      date: null as Date | null,
+      notes: "",
+    },
+    validationSchema,
+    onSubmit: async (values) => {
+      if (!user) {
+        toast.error("You must be logged in to create an expense");
+        return;
+      }
+      try {
+        const expenseData = {
+          title: values.title,
+          amount: parseFloat(values.amount),
+          category: values.category,
+          date: values.date!.toISOString().split('T')[0],
+          notes: values.notes || null,
+          user_id: user.id,
+          currency: "USD",
+        };
+        await expenseService.createExpense(expenseData);
+        toast.success("Expense created successfully");
+        router.push("/expenses");
+      } catch (error) {
+        console.error("Error creating expense:", error);
+        toast.error("Failed to create expense");
+      }
+    },
+  });
+
+  const handleDateSelect = (date: Date | undefined) => {
+    formik.setFieldValue("date", date || null);
   };
+
+  if (userLoading) {
+    return (
+      <main id="main">
+        <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.CREATE)} />
+        <div className="px-4 py-6">
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <div className="text-center">Loading...</div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main id="main">
@@ -53,28 +115,60 @@ export default function CreateExpensePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={formik.handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <label htmlFor="title" className="text-sm font-medium">
                       Title *
                     </label>
-                    <Input id="title" name="title" type="text" placeholder="What was it spent for..." required />
+                    <Input
+                      id="title"
+                      name="title"
+                      type="text"
+                      placeholder="What was it spent for..."
+                      value={formik.values.title}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className={cn(
+                        formik.touched.title && formik.errors.title && "border-destructive"
+                      )}
+                    />
+                    {formik.touched.title && formik.errors.title && (
+                      <p className="text-sm text-destructive">{formik.errors.title}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <label htmlFor="amount" className="text-sm font-medium">
                       Amount *
                     </label>
-                    <Input id="amount" name="amount" type="number" step="1" placeholder="0.00" required />
+                    <Input
+                      id="amount"
+                      name="amount"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={formik.values.amount}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className={cn(
+                        formik.touched.amount && formik.errors.amount && "border-destructive"
+                      )}
+                    />
+                    {formik.touched.amount && formik.errors.amount && (
+                      <p className="text-sm text-destructive">{formik.errors.amount}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <label htmlFor="category" className="text-sm font-medium">
                       Category *
                     </label>
-                    <Select required>
+                    <Select
+                      value={formik.values.category}
+                      onValueChange={(value) => formik.setFieldValue("category", value)}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -90,6 +184,9 @@ export default function CreateExpensePage() {
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
+                    {formik.touched.category && formik.errors.category && (
+                      <p className="text-sm text-destructive">{formik.errors.category}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -100,21 +197,24 @@ export default function CreateExpensePage() {
                           variant="outline"
                           className={cn(
                             "w-full justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
+                            !formik.values.date && "text-muted-foreground"
                           )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {date ? format(date, "PPP") : "Pick a date"}
+                          {formik.values.date ? format(formik.values.date, "PPP") : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
                         <Calendar
                           mode="single"
-                          selected={date}
-                          onSelect={setDate}
+                          selected={formik.values.date || undefined}
+                          onSelect={handleDateSelect}
                         />
                       </PopoverContent>
                     </Popover>
+                    {formik.touched.date && formik.errors.date && (
+                      <p className="text-sm text-destructive">{formik.errors.date}</p>
+                    )}
                   </div>
                 </div>
 
@@ -128,6 +228,9 @@ export default function CreateExpensePage() {
                     name="notes"
                     placeholder="Additional notes..."
                     rows={3}
+                    value={formik.values.notes}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                   />
                 </div>
               </div>
@@ -137,12 +240,15 @@ export default function CreateExpensePage() {
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
-                  className="flex-1"
+                  disabled={formik.isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1">
-                  Create Expense
+                <Button 
+                  type="submit" 
+                  disabled={!formik.isValid || formik.isSubmitting || !user}
+                >
+                  {formik.isSubmitting ? "Creating..." : "Create Expense"}
                 </Button>
               </div>
             </form>

@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useFormik } from "formik";
+import * as yup from "yup";
 import Header from "@/components/header";
 import { createCrudBreadcrumb, CRUD, loansPage } from "@/constants/pages";
 import { Button } from "@/components/ui/button";
@@ -29,16 +30,82 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { loanService } from "@/services/loan-service";
+import { useUser } from "@/hooks/use-user";
+import { toast } from "sonner";
+
+const validationSchema = yup.object({
+  direction: yup
+    .string()
+    .oneOf(["lending", "borrowing"])
+    .required("Direction is required"),
+  amount: yup
+    .number()
+    .positive("Amount must be positive")
+    .required("Amount is required"),
+  date: yup.date().required("Date is required"),
+  counterparty: yup.string().required("Counterparty is required"),
+  notes: yup.string(),
+});
 
 export default function CreateLoanPage() {
   const router = useRouter();
-  const [date, setDate] = useState<Date>();
+  const { user, isLoading: userLoading } = useUser();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Loan created");
-    router.push("/loans");
+  const formik = useFormik({
+    initialValues: {
+      direction: "",
+      amount: "",
+      date: null as Date | null,
+      counterparty: "",
+      notes: "",
+    },
+    validationSchema,
+    onSubmit: async (values) => {
+      if (!user) {
+        toast.error("You must be logged in to create a loan");
+        return;
+      }
+
+      try {
+        const loanData = {
+          direction: values.direction as "lending" | "borrowing",
+          amount: parseFloat(values.amount),
+          date: values.date!.toISOString().split("T")[0],
+          counterparty: values.counterparty,
+          notes: values.notes || null,
+          user_id: user.id,
+        };
+
+        await loanService.createLoan(loanData);
+
+        toast.success("Loan created successfully");
+        router.push("/loans");
+      } catch (error) {
+        console.error("Error creating loan:", error);
+        toast.error("Failed to create loan");
+      }
+    },
+  });
+
+  const handleDateSelect = (date: Date | undefined) => {
+    formik.setFieldValue("date", date || null);
   };
+
+  if (userLoading) {
+    return (
+      <main id="main">
+        <Header breadcrumbs={createCrudBreadcrumb(loansPage, CRUD.CREATE)} />
+        <div className="px-4 py-6">
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <div className="text-center">Loading...</div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main id="main">
@@ -53,14 +120,19 @@ export default function CreateLoanPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={formik.handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <label htmlFor="direction" className="text-sm font-medium">
                       Direction *
                     </label>
-                    <Select required>
+                    <Select
+                      value={formik.values.direction}
+                      onValueChange={(value) =>
+                        formik.setFieldValue("direction", value)
+                      }
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Lending or borrowing?" />
                       </SelectTrigger>
@@ -73,6 +145,11 @@ export default function CreateLoanPage() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                    {formik.touched.direction && formik.errors.direction && (
+                      <p className="text-sm text-destructive">
+                        {formik.errors.direction}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -85,8 +162,20 @@ export default function CreateLoanPage() {
                       type="number"
                       step="0.01"
                       placeholder="0.00"
-                      required
+                      value={formik.values.amount}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className={cn(
+                        formik.touched.amount &&
+                          formik.errors.amount &&
+                          "border-destructive"
+                      )}
                     />
+                    {formik.touched.amount && formik.errors.amount && (
+                      <p className="text-sm text-destructive">
+                        {formik.errors.amount}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -97,21 +186,28 @@ export default function CreateLoanPage() {
                           variant="outline"
                           className={cn(
                             "w-full justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
+                            !formik.values.date && "text-muted-foreground"
                           )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {date ? format(date, "PPP") : "Pick a date"}
+                          {formik.values.date
+                            ? format(formik.values.date, "PPP")
+                            : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
                         <Calendar
                           mode="single"
-                          selected={date}
-                          onSelect={setDate}
+                          selected={formik.values.date || undefined}
+                          onSelect={handleDateSelect}
                         />
                       </PopoverContent>
                     </Popover>
+                    {formik.touched.date && formik.errors.date && (
+                      <p className="text-sm text-destructive">
+                        {formik.errors.date}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -125,10 +221,22 @@ export default function CreateLoanPage() {
                       id="counterparty"
                       name="counterparty"
                       placeholder="Person or institution name"
-                      required
+                      value={formik.values.counterparty}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className={cn(
+                        formik.touched.counterparty &&
+                          formik.errors.counterparty &&
+                          "border-destructive"
+                      )}
                     />
+                    {formik.touched.counterparty &&
+                      formik.errors.counterparty && (
+                        <p className="text-sm text-destructive">
+                          {formik.errors.counterparty}
+                        </p>
+                      )}
                   </div>
-
                 </div>
 
                 <div className="space-y-2 flex-1 flex flex-col col-span-2">
@@ -141,6 +249,9 @@ export default function CreateLoanPage() {
                     name="notes"
                     placeholder="Additional notes..."
                     rows={3}
+                    value={formik.values.notes}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                   />
                 </div>
               </div>
@@ -150,12 +261,15 @@ export default function CreateLoanPage() {
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
-                  className="flex-1"
+                  disabled={formik.isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1">
-                  Create Loan
+                <Button
+                  type="submit"
+                  disabled={!formik.isValid || formik.isSubmitting || !user}
+                >
+                  {formik.isSubmitting ? "Creating..." : "Create Loan"}
                 </Button>
               </div>
             </form>

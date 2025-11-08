@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useFormik } from "formik";
+import * as yup from "yup";
 import Header from "@/components/header";
 import { createCrudBreadcrumb, CRUD, remindersPage } from "@/constants/pages";
 import { Button } from "@/components/ui/button";
@@ -31,18 +32,97 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { reminderService } from "@/services/reminder-service";
+import { useUser } from "@/hooks/use-user";
+import { toast } from "sonner";
+
+const validationSchema = yup.object({
+  title: yup.string().required("Title is required"),
+  category: yup.string().required("Category is required"),
+  dueDate: yup.date().required("Due date is required"),
+  hasTime: yup.boolean(),
+  dueTime: yup.string().when("hasTime", {
+    is: true,
+    then: (schema) => schema.required("Time is required when enabled"),
+    otherwise: (schema) => schema.nullable(),
+  }),
+  priority: yup.string().required("Priority is required"),
+  recurrence: yup.string().required("Recurrence is required"),
+  description: yup.string(),
+});
 
 export default function CreateReminderPage() {
   const router = useRouter();
-  const [date, setDate] = useState<Date>();
-  const [hasTime, setHasTime] = useState(false);
-  const [time, setTime] = useState("12:00");
+  const { user, isLoading: userLoading } = useUser();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Reminder created");
-    router.push("/reminders");
+  const formik = useFormik({
+    initialValues: {
+      title: "",
+      category: "",
+      dueDate: null as Date | null,
+      hasTime: false,
+      dueTime: "",
+      priority: "medium",
+      recurrence: "none",
+      description: "",
+    },
+    validationSchema,
+    onSubmit: async (values) => {
+      if (!user) {
+        toast.error("You must be logged in to create a reminder");
+        return;
+      }
+      try {
+        const reminderData = {
+          title: values.title,
+          category: values.category,
+          due_date: values.dueDate!.toISOString().split('T')[0],
+          due_time: values.hasTime ? values.dueTime : null,
+          priority: values.priority,
+          recurrence: values.recurrence,
+          description: values.description || null,
+          user_id: user.id,
+          is_completed: false,
+        };
+        await reminderService.createReminder(reminderData);
+        toast.success("Reminder created successfully");
+        router.push("/reminders");
+      } catch (error) {
+        console.error("Error creating reminder:", error);
+        toast.error("Failed to create reminder");
+      }
+    },
+  });
+
+  const handleDateSelect = (date: Date | undefined) => {
+    formik.setFieldValue("dueDate", date || null);
   };
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    formik.setFieldValue("dueTime", e.target.value);
+  };
+
+  const handleHasTimeChange = (checked: boolean) => {
+    formik.setFieldValue("hasTime", checked);
+    if (!checked) {
+      formik.setFieldValue("dueTime", "");
+    }
+  };
+
+  if (userLoading) {
+    return (
+      <main id="main">
+        <Header breadcrumbs={createCrudBreadcrumb(remindersPage, CRUD.CREATE)} />
+        <div className="px-4 py-6">
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <div className="text-center">Loading...</div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main id="main">
@@ -57,7 +137,7 @@ export default function CreateReminderPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={formik.handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
@@ -69,15 +149,26 @@ export default function CreateReminderPage() {
                       name="title"
                       type="text"
                       placeholder="Reminder title..."
-                      required
+                      value={formik.values.title}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className={cn(
+                        formik.touched.title && formik.errors.title && "border-destructive"
+                      )}
                     />
+                    {formik.touched.title && formik.errors.title && (
+                      <p className="text-sm text-destructive">{formik.errors.title}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <label htmlFor="category" className="text-sm font-medium">
                       Category *
                     </label>
-                    <Select required>
+                    <Select
+                      value={formik.values.category}
+                      onValueChange={(value) => formik.setFieldValue("category", value)}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -91,6 +182,9 @@ export default function CreateReminderPage() {
                         <SelectItem value="work">Work</SelectItem>
                       </SelectContent>
                     </Select>
+                    {formik.touched.category && formik.errors.category && (
+                      <p className="text-sm text-destructive">{formik.errors.category}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -101,46 +195,53 @@ export default function CreateReminderPage() {
                           variant="outline"
                           className={cn(
                             "w-full justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
+                            !formik.values.dueDate && "text-muted-foreground"
                           )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {date ? format(date, "PPP") : "Pick a date"}
+                          {formik.values.dueDate ? format(formik.values.dueDate, "PPP") : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
                         <Calendar
                           mode="single"
-                          selected={date}
-                          onSelect={setDate}
+                          selected={formik.values.dueDate || undefined}
+                          onSelect={handleDateSelect}
                         />
                       </PopoverContent>
                     </Popover>
+                    {formik.touched.dueDate && formik.errors.dueDate && (
+                      <p className="text-sm text-destructive">{formik.errors.dueDate}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
                       <Switch
                         id="hasTime"
-                        checked={hasTime}
-                        onCheckedChange={setHasTime}
+                        checked={formik.values.hasTime}
+                        onCheckedChange={handleHasTimeChange}
                       />
                       <Label htmlFor="hasTime" className="text-sm font-medium">
                         Set Specific Time
                       </Label>
                     </div>
-                    {hasTime && (
+                    {formik.values.hasTime && (
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
                         <Input
-                          id="time"
-                          name="time"
+                          id="dueTime"
+                          name="dueTime"
                           type="time"
-                          value={time}
-                          onChange={(e) => setTime(e.target.value)}
+                          value={formik.values.dueTime}
+                          onChange={handleTimeChange}
+                          onBlur={formik.handleBlur}
                           className="flex-1"
                         />
                       </div>
+                    )}
+                    {formik.touched.dueTime && formik.errors.dueTime && (
+                      <p className="text-sm text-destructive">{formik.errors.dueTime}</p>
                     )}
                   </div>
 
@@ -148,7 +249,10 @@ export default function CreateReminderPage() {
                     <label htmlFor="priority" className="text-sm font-medium">
                       Priority
                     </label>
-                    <Select defaultValue="medium">
+                    <Select
+                      value={formik.values.priority}
+                      onValueChange={(value) => formik.setFieldValue("priority", value)}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select priority" />
                       </SelectTrigger>
@@ -165,7 +269,10 @@ export default function CreateReminderPage() {
                     <label htmlFor="recurrence" className="text-sm font-medium">
                       Recurrence
                     </label>
-                    <Select>
+                    <Select
+                      value={formik.values.recurrence}
+                      onValueChange={(value) => formik.setFieldValue("recurrence", value)}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Does this repeat?" />
                       </SelectTrigger>
@@ -190,6 +297,9 @@ export default function CreateReminderPage() {
                     name="description"
                     placeholder="Add details about this reminder..."
                     rows={3}
+                    value={formik.values.description}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                   />
                 </div>
               </div>
@@ -199,12 +309,15 @@ export default function CreateReminderPage() {
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
-                  className="flex-1"
+                  disabled={formik.isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1">
-                  Create Reminder
+                <Button 
+                  type="submit" 
+                  disabled={!formik.isValid || formik.isSubmitting || !user}
+                >
+                  {formik.isSubmitting ? "Creating..." : "Create Reminder"}
                 </Button>
               </div>
             </form>
