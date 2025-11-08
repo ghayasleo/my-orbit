@@ -1,14 +1,101 @@
-import Header from "@/components/header";
-import { loansBreadcrumb } from "@/constants/pages";
+"use client";
 
-function Page() {
+import { useState } from "react";
+import Header from "@/components/header";
+import { CRUD, loansBreadcrumb, loansPage } from "@/constants/pages";
+import { DataTable } from "@/components/data-table";
+import { loanColumns } from "@/constants/columns";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Plus, Search } from "lucide-react";
+import Link from "next/link";
+import { useLoans } from "@/hooks/use-loans";
+import { useCurrency } from "@/hooks/use-currency";
+
+export default function LoansPage() {
+  const { currency } = useCurrency();
+  const { loans, isLoading, error } = useLoans();
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredLoans = loans?.filter(loan =>
+    loan.counterparty.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    loan.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    loan.direction.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
+  if (error) {
+    return (
+      <main id="main">
+        <Header breadcrumbs={loansBreadcrumb} />
+        <div className="px-4 py-6">
+          <div className="text-center text-destructive">
+            Error loading loans: {error.message}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main id="main">
-      <Header breadcrumbs={loansBreadcrumb}/>
+      <Header breadcrumbs={loansBreadcrumb} />
 
-      <div className="px-4">Loans</div>
+      <div className="px-4 py-6">
+        <div className="space-y-6">
+          {/* Header with Search and Create Button */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="relative w-full sm:w-auto sm:min-w-[300px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search loans..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button asChild>
+              <Link href={`${loansPage.url}/${CRUD.CREATE}`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Loan
+              </Link>
+            </Button>
+          </div>
+
+          {/* Data Table */}
+          <div className="rounded-lg border">
+            <DataTable
+              columns={loanColumns}
+              data={filteredLoans}
+              meta={{ currency }}
+            />
+          </div>
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-2 text-sm text-muted-foreground">Loading loans...</p>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoading && filteredLoans.length === 0 && (
+            <div className="text-center py-12">
+              <div className="text-muted-foreground">
+                {searchTerm ? "No loans found matching your search." : "No loans yet."}
+              </div>
+              {!searchTerm && (
+                <Button asChild className="mt-4">
+                  <Link href={`${loansPage.url}/${CRUD.CREATE}`}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Your First Loan
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
-
-export default Page;

@@ -1,12 +1,20 @@
-import { createClient } from '@/lib/supabase/client';
-import { TablesInsert } from '@/lib/supabase/_database';
+import { createClient } from "@/lib/supabase/client";
+import { TablesInsert } from "@/lib/supabase/_database";
 
 export class ExpenseService {
-  private supabase = createClient();
+  private supabase;
 
-  async createExpense(expense: TablesInsert<'expenses'>) {
+  constructor() {
+    this.supabase = createClient();
+
+    this.createExpense = this.createExpense.bind(this);
+    this.getExpenses = this.getExpenses.bind(this);
+    this.deleteExpense = this.deleteExpense.bind(this);
+  }
+
+  async createExpense(expense: TablesInsert<"expenses">) {
     const { data, error } = await this.supabase
-      .from('expenses')
+      .from("expenses")
       .insert(expense)
       .select()
       .single();
@@ -17,20 +25,31 @@ export class ExpenseService {
 
   async getExpenses(userId: string) {
     const { data, error } = await this.supabase
-      .from('expenses')
-      .select('*')
-      .eq('user_id', userId)
-      .order('date', { ascending: false });
+      .from("expenses")
+      .select("*")
+      .eq("user_id", userId)
+      .order("date", { ascending: false });
 
     if (error) throw error;
     return data;
   }
 
-  async updateExpense(id: string, updates: Partial<TablesInsert<'expenses'>>) {
+  async getExpenseById(id: string) {
     const { data, error } = await this.supabase
-      .from('expenses')
+      .from("expenses")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async updateExpense(id: string, updates: Partial<TablesInsert<"expenses">>) {
+    const { data, error } = await this.supabase
+      .from("expenses")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -40,9 +59,9 @@ export class ExpenseService {
 
   async deleteExpense(id: string) {
     const { error } = await this.supabase
-      .from('expenses')
+      .from("expenses")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) throw error;
   }

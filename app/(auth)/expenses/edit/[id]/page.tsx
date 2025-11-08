@@ -1,7 +1,8 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useFormik } from "formik";
 import * as yup from "yup";
+import { useEffect } from "react";
 import Header from "@/components/header";
 import { createCrudBreadcrumb, CRUD, expensesPage } from "@/constants/pages";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -34,6 +35,7 @@ import { expenseService } from "@/services/expense-service";
 import { useUser } from "@/hooks/use-user";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useExpense } from "@/hooks/use-expense";
 
 const validationSchema = yup.object({
   title: yup.string().required("Title is required"),
@@ -46,10 +48,14 @@ const validationSchema = yup.object({
   notes: yup.string(),
 });
 
-export default function CreateExpensePage() {
+export default function EditExpensePage() {
   const router = useRouter();
+  const params = useParams();
   const queryClient = useQueryClient();
   const { user, isLoading: userLoading } = useUser();
+
+  const expenseId = params.id as string;
+  const { data: expense, isLoading, error } = useExpense(expenseId);
 
   const formik = useFormik({
     initialValues: {
@@ -60,11 +66,10 @@ export default function CreateExpensePage() {
       notes: "",
     },
     validationSchema,
+    enableReinitialize: true,
     onSubmit: async (values) => {
-      if (!user) {
-        toast.error("You must be logged in to create an expense");
-        return;
-      }
+      if (!user || !expense) return;
+
       try {
         const expenseData = {
           title: values.title,
@@ -72,31 +77,68 @@ export default function CreateExpensePage() {
           category: values.category,
           date: values.date!.toISOString().split("T")[0],
           notes: values.notes || null,
-          user_id: user.id,
         };
-        await expenseService.createExpense(expenseData);
-        toast.success("Expense created successfully");
+
+        await expenseService.updateExpense(expense.id, expenseData);
+
+        toast.success("Expense updated successfully");
         queryClient.invalidateQueries({ queryKey: ["expenses"] });
+        queryClient.invalidateQueries({ queryKey: ["expense", expenseId] });
         router.push(expensesPage.url);
       } catch (error) {
-        console.error("Error creating expense:", error);
-        toast.error("Failed to create expense");
+        console.error("Error updating expense:", error);
+        toast.error("Failed to update expense");
       }
     },
   });
+
+  useEffect(() => {
+    if (expense) {
+      formik.setValues({
+        title: expense.title,
+        amount: expense.amount.toString(),
+        category: expense.category,
+        date: new Date(expense.date),
+        notes: expense.notes || "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expense]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error("Failed to load expense");
+      router.push(expensesPage.url);
+    }
+  }, [error, router]);
 
   const handleDateSelect = (date: Date | undefined) => {
     formik.setFieldValue("date", date || null);
   };
 
-  if (userLoading) {
+  if (userLoading || isLoading) {
     return (
       <main id="main">
-        <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.CREATE)} />
+        <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.UPDATE)} />
         <div className="px-4 py-6">
           <Card>
             <CardContent className="flex items-center justify-center py-8">
-              <div className="text-center">Loading...</div>
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if (!expense) {
+    return (
+      <main id="main">
+        <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.UPDATE)} />
+        <div className="px-4 py-6">
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <div className="text-center">Expense not found</div>
             </CardContent>
           </Card>
         </div>
@@ -106,15 +148,13 @@ export default function CreateExpensePage() {
 
   return (
     <main id="main">
-      <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.CREATE)} />
+      <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.UPDATE)} />
 
       <div className="px-4 py-6">
         <Card>
           <CardHeader>
-            <CardTitle>Create New Expense</CardTitle>
-            <CardDescription>
-              Add a new expense to track your spending
-            </CardDescription>
+            <CardTitle>Edit Expense</CardTitle>
+            <CardDescription>Update your expense details</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={formik.handleSubmit} className="space-y-6">
@@ -268,7 +308,7 @@ export default function CreateExpensePage() {
                   type="submit"
                   disabled={!formik.isValid || formik.isSubmitting || !user}
                 >
-                  {formik.isSubmitting ? "Creating..." : "Create Expense"}
+                  {formik.isSubmitting ? "Updating..." : "Update Expense"}
                 </Button>
               </div>
             </form>

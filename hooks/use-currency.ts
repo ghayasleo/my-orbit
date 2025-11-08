@@ -1,4 +1,3 @@
-// hooks/use-currency.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { currencyService } from "@/services/currency-service";
 

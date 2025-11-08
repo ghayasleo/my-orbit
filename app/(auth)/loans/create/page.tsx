@@ -33,6 +33,7 @@ import {
 import { loanService } from "@/services/loan-service";
 import { useUser } from "@/hooks/use-user";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const validationSchema = yup.object({
   direction: yup
@@ -50,6 +51,7 @@ const validationSchema = yup.object({
 
 export default function CreateLoanPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isLoading: userLoading } = useUser();
 
   const formik = useFormik({
@@ -80,7 +82,8 @@ export default function CreateLoanPage() {
         await loanService.createLoan(loanData);
 
         toast.success("Loan created successfully");
-        router.push("/loans");
+        queryClient.invalidateQueries({ queryKey: ["loans"] });
+        router.push(loansPage.url);
       } catch (error) {
         console.error("Error creating loan:", error);
         toast.error("Failed to create loan");

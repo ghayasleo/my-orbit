@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { Page } from "@/constants/pages";
 import { SidebarTrigger } from "./ui/sidebar";
 import { ChevronRightIcon } from "@heroicons/react/24/outline";
+import Link from "next/link";
 
 interface HeaderProps {
   breadcrumbs?: Page[];
@@ -31,13 +32,13 @@ function Header({ breadcrumbs }: HeaderProps) {
                     className="items-center gap-1.5 hidden md:block"
                   >
                     {id !== breadcrumbs.length - 1 ? (
-                      <a
+                      <Link
                         data-slot="breadcrumb-link"
                         className="hover:text-foreground transition-colors"
                         href={val.url}
                       >
                         {val.title}
-                      </a>
+                      </Link>
                     ) : (
                       <span
                         data-slot="breadcrumb-page"

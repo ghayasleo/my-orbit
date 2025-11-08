@@ -1,7 +1,7 @@
 -- Create expenses table
 CREATE TABLE expenses (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
   amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
   currency TEXT DEFAULT 'USD',
@@ -15,9 +15,10 @@ CREATE TABLE expenses (
 -- Create loans table
 CREATE TABLE loans (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   direction TEXT NOT NULL CHECK (direction IN ('lending', 'borrowing')),
   amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+  currency TEXT DEFAULT 'USD',
   counterparty TEXT NOT NULL,
   date DATE NOT NULL,
   notes TEXT,
@@ -28,7 +29,7 @@ CREATE TABLE loans (
 -- Create reminders table
 CREATE TABLE reminders (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   category TEXT NOT NULL,

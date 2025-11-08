@@ -19,7 +19,6 @@ export type Database = {
           amount: number
           category: string
           created_at: string | null
-          currency: string | null
           date: string
           id: string
           notes: string | null
@@ -31,7 +30,6 @@ export type Database = {
           amount: number
           category: string
           created_at?: string | null
-          currency?: string | null
           date: string
           id?: string
           notes?: string | null
@@ -43,7 +41,6 @@ export type Database = {
           amount?: number
           category?: string
           created_at?: string | null
-          currency?: string | null
           date?: string
           id?: string
           notes?: string | null

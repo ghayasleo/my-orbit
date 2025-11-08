@@ -1,9 +1,10 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useFormik } from "formik";
 import * as yup from "yup";
+import { useEffect } from "react";
 import Header from "@/components/header";
-import { createCrudBreadcrumb, CRUD, expensesPage } from "@/constants/pages";
+import { createCrudBreadcrumb, CRUD, loansPage } from "@/constants/pages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -30,73 +31,117 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { expenseService } from "@/services/expense-service";
+import { loanService } from "@/services/loan-service";
 import { useUser } from "@/hooks/use-user";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLoan } from "@/hooks/use-loan";
 
 const validationSchema = yup.object({
-  title: yup.string().required("Title is required"),
+  direction: yup
+    .string()
+    .oneOf(["lending", "borrowing"])
+    .required("Direction is required"),
   amount: yup
     .number()
     .positive("Amount must be positive")
     .required("Amount is required"),
-  category: yup.string().required("Category is required"),
   date: yup.date().required("Date is required"),
+  counterparty: yup.string().required("Counterparty is required"),
   notes: yup.string(),
 });
 
-export default function CreateExpensePage() {
+export default function EditLoanPage() {
   const router = useRouter();
+  const params = useParams();
   const queryClient = useQueryClient();
   const { user, isLoading: userLoading } = useUser();
 
+  const loanId = params.id as string;
+  const { data: loan, isLoading, error } = useLoan(loanId);
+
   const formik = useFormik({
     initialValues: {
-      title: "",
+      direction: "",
       amount: "",
-      category: "",
       date: null as Date | null,
+      counterparty: "",
       notes: "",
     },
     validationSchema,
+    enableReinitialize: true,
     onSubmit: async (values) => {
-      if (!user) {
-        toast.error("You must be logged in to create an expense");
-        return;
-      }
+      if (!user || !loan) return;
+
       try {
-        const expenseData = {
-          title: values.title,
+        const loanData = {
+          direction: values.direction as "lending" | "borrowing",
           amount: parseFloat(values.amount),
-          category: values.category,
           date: values.date!.toISOString().split("T")[0],
+          counterparty: values.counterparty,
           notes: values.notes || null,
-          user_id: user.id,
         };
-        await expenseService.createExpense(expenseData);
-        toast.success("Expense created successfully");
-        queryClient.invalidateQueries({ queryKey: ["expenses"] });
-        router.push(expensesPage.url);
+
+        await loanService.updateLoan(loan.id, loanData);
+
+        toast.success("Loan updated successfully");
+        queryClient.invalidateQueries({ queryKey: ["loans"] });
+        queryClient.invalidateQueries({ queryKey: ["loan", loanId] });
+        router.push(loansPage.url);
       } catch (error) {
-        console.error("Error creating expense:", error);
-        toast.error("Failed to create expense");
+        console.error("Error updating loan:", error);
+        toast.error("Failed to update loan");
       }
     },
   });
+
+  useEffect(() => {
+    if (loan) {
+      formik.setValues({
+        direction: loan.direction,
+        amount: loan.amount.toString(),
+        date: new Date(loan.date),
+        counterparty: loan.counterparty,
+        notes: loan.notes || "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loan]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error("Failed to load loan");
+      router.push(loansPage.url);
+    }
+  }, [error, router]);
 
   const handleDateSelect = (date: Date | undefined) => {
     formik.setFieldValue("date", date || null);
   };
 
-  if (userLoading) {
+  if (userLoading || isLoading) {
     return (
       <main id="main">
-        <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.CREATE)} />
+        <Header breadcrumbs={createCrudBreadcrumb(loansPage, CRUD.UPDATE)} />
         <div className="px-4 py-6">
           <Card>
             <CardContent className="flex items-center justify-center py-8">
-              <div className="text-center">Loading...</div>
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if (!loan) {
+    return (
+      <main id="main">
+        <Header breadcrumbs={createCrudBreadcrumb(loansPage, CRUD.UPDATE)} />
+        <div className="px-4 py-6">
+          <Card>
+            <CardContent className="flex items-center justify-center py-8">
+              <div className="text-center">Loan not found</div>
             </CardContent>
           </Card>
         </div>
@@ -106,41 +151,43 @@ export default function CreateExpensePage() {
 
   return (
     <main id="main">
-      <Header breadcrumbs={createCrudBreadcrumb(expensesPage, CRUD.CREATE)} />
+      <Header breadcrumbs={createCrudBreadcrumb(loansPage, CRUD.UPDATE)} />
 
       <div className="px-4 py-6">
         <Card>
           <CardHeader>
-            <CardTitle>Create New Expense</CardTitle>
-            <CardDescription>
-              Add a new expense to track your spending
-            </CardDescription>
+            <CardTitle>Edit Loan</CardTitle>
+            <CardDescription>Update your loan details</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={formik.handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
-                    <label htmlFor="title" className="text-sm font-medium">
-                      Title *
+                    <label htmlFor="direction" className="text-sm font-medium">
+                      Direction *
                     </label>
-                    <Input
-                      id="title"
-                      name="title"
-                      type="text"
-                      placeholder="What was it spent for..."
-                      value={formik.values.title}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      className={cn(
-                        formik.touched.title &&
-                          formik.errors.title &&
-                          "border-destructive"
-                      )}
-                    />
-                    {formik.touched.title && formik.errors.title && (
+                    <Select
+                      value={formik.values.direction}
+                      onValueChange={(value) =>
+                        formik.setFieldValue("direction", value)
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Lending or borrowing?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="lending">
+                          I&apos;m Lending Money
+                        </SelectItem>
+                        <SelectItem value="borrowing">
+                          I&apos;m Borrowing Money
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {formik.touched.direction && formik.errors.direction && (
                       <p className="text-sm text-destructive">
-                        {formik.errors.title}
+                        {formik.errors.direction}
                       </p>
                     )}
                   </div>
@@ -167,40 +214,6 @@ export default function CreateExpensePage() {
                     {formik.touched.amount && formik.errors.amount && (
                       <p className="text-sm text-destructive">
                         {formik.errors.amount}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="category" className="text-sm font-medium">
-                      Category *
-                    </label>
-                    <Select
-                      value={formik.values.category}
-                      onValueChange={(value) =>
-                        formik.setFieldValue("category", value)
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="food">Food & Dining</SelectItem>
-                        <SelectItem value="transport">
-                          Transportation
-                        </SelectItem>
-                        <SelectItem value="shopping">Shopping</SelectItem>
-                        <SelectItem value="entertainment">
-                          Entertainment
-                        </SelectItem>
-                        <SelectItem value="bills">Bills & Utilities</SelectItem>
-                        <SelectItem value="healthcare">Healthcare</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {formik.touched.category && formik.errors.category && (
-                      <p className="text-sm text-destructive">
-                        {formik.errors.category}
                       </p>
                     )}
                   </div>
@@ -236,6 +249,34 @@ export default function CreateExpensePage() {
                       </p>
                     )}
                   </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="counterparty"
+                      className="text-sm font-medium"
+                    >
+                      Counterparty *
+                    </label>
+                    <Input
+                      id="counterparty"
+                      name="counterparty"
+                      placeholder="Person or institution name"
+                      value={formik.values.counterparty}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className={cn(
+                        formik.touched.counterparty &&
+                          formik.errors.counterparty &&
+                          "border-destructive"
+                      )}
+                    />
+                    {formik.touched.counterparty &&
+                      formik.errors.counterparty && (
+                        <p className="text-sm text-destructive">
+                          {formik.errors.counterparty}
+                        </p>
+                      )}
+                  </div>
                 </div>
 
                 <div className="space-y-2 flex-1 flex flex-col col-span-2">
@@ -268,7 +309,7 @@ export default function CreateExpensePage() {
                   type="submit"
                   disabled={!formik.isValid || formik.isSubmitting || !user}
                 >
-                  {formik.isSubmitting ? "Creating..." : "Create Expense"}
+                  {formik.isSubmitting ? "Updating..." : "Update Loan"}
                 </Button>
               </div>
             </form>

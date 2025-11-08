@@ -1,12 +1,20 @@
-import { createClient } from '@/lib/supabase/client';
-import { TablesInsert } from '@/lib/supabase/_database';
+import { createClient } from "@/lib/supabase/client";
+import { TablesInsert } from "@/lib/supabase/_database";
 
 export class ReminderService {
-  private supabase = createClient();
+  private supabase;
 
-  async createReminder(reminder: TablesInsert<'reminders'>) {
+  constructor() {
+    this.supabase = createClient();
+
+    this.createReminder = this.createReminder.bind(this);
+    this.getReminders = this.getReminders.bind(this);
+    this.deleteReminder = this.deleteReminder.bind(this);
+  }
+
+  async createReminder(reminder: TablesInsert<"reminders">) {
     const { data, error } = await this.supabase
-      .from('reminders')
+      .from("reminders")
       .insert(reminder)
       .select()
       .single();
@@ -17,20 +25,34 @@ export class ReminderService {
 
   async getReminders(userId: string) {
     const { data, error } = await this.supabase
-      .from('reminders')
-      .select('*')
-      .eq('user_id', userId)
-      .order('due_date', { ascending: true });
+      .from("reminders")
+      .select("*")
+      .eq("user_id", userId)
+      .order("due_date", { ascending: true });
 
     if (error) throw error;
     return data;
   }
 
-  async updateReminder(id: string, updates: Partial<TablesInsert<'reminders'>>) {
+  async getReminderById(id: string) {
     const { data, error } = await this.supabase
-      .from('reminders')
+      .from("reminders")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async updateReminder(
+    id: string,
+    updates: Partial<TablesInsert<"reminders">>,
+  ) {
+    const { data, error } = await this.supabase
+      .from("reminders")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -40,9 +62,9 @@ export class ReminderService {
 
   async deleteReminder(id: string) {
     const { error } = await this.supabase
-      .from('reminders')
+      .from("reminders")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) throw error;
   }

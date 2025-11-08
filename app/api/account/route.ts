@@ -1,5 +1,5 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -13,9 +13,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const adminClient = createAdminClient();
 
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -37,6 +35,9 @@ export async function DELETE(request: NextRequest) {
     );
 
     if (deleteError) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error deleting user:", deleteError);
+      }
       return NextResponse.json(
         { error: "Failed to delete user" },
         { status: 500 }

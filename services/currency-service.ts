@@ -1,4 +1,3 @@
-// services/currency-service.ts
 import { createClient } from "@/lib/supabase/client";
 import currencies from "@/lib/currencies";
 
