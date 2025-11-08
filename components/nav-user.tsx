@@ -65,7 +65,7 @@ export function NavUser({
         throw new Error("No active session");
       }
 
-      const response = await fetch("/api/account/delete", {
+      const response = await fetch("/api/account", {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${session.access_token}`,

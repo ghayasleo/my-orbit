@@ -1,4 +1,4 @@
-import menu from "@/constants/menu-items";
+import { menu } from "@/constants/pages";
 import { GalleryVerticalEnd } from "lucide-react";
 import {
   SidebarContent,
@@ -15,18 +15,19 @@ import {
 } from "./ui/sidebar";
 import { NavUser } from "./nav-user";
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 
 async function AppSidebar() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  console.log(user);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const userData = {
     name: user?.user_metadata.full_name,
-    email: user?.email || '',
+    email: user?.email || "",
     avatar: user?.user_metadata.avatar_url,
-  }
+  };
 
   return (
     <Sidebar>
@@ -56,10 +57,10 @@ async function AppSidebar() {
               {menu.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                    <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

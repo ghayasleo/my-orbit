@@ -1,7 +1,14 @@
-export default function Home() {
+import Header from "@/components/header";
+import { homeBreadcrumb } from "@/constants/pages";
+
+function Page() {
   return (
-    <main>
-      abc
+    <main id="main">
+      <Header breadcrumbs={homeBreadcrumb}/>
+
+      <div className="px-4">Home</div>
     </main>
   );
 }
+
+export default Page;
