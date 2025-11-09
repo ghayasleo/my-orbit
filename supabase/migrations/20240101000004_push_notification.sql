@@ -52,24 +52,27 @@ DECLARE
     notify_count INTEGER := 0;
 BEGIN
     RAISE NOTICE '=== CRON JOB STARTED at % ===', NOW();
-
-    -- Process due reminders with limit to prevent timeout
+    -- Process due reminders - MUCH SIMPLER!
     FOR due_reminder IN
         SELECT
             r.id as reminder_id,
             r.user_id,
             r.title,
-            r.description
+            r.description,
+            r.due_at
         FROM reminders r
         WHERE NOT r.is_completed
             AND NOT r.notification_sent
-            AND (r.due_date || ' ' || COALESCE(r.due_time, '00:00:00'))::timestamp <= NOW()
+            AND r.due_at <= NOW()  -- Simple comparison! PostgreSQL handles timezone automatically
             AND r.user_id IS NOT NULL
-        LIMIT 50  -- Prevent timeout with too many reminders
+        LIMIT 50
     LOOP
         BEGIN
             processed_count := processed_count + 1;
-            RAISE NOTICE 'Processing reminder: % for user %', due_reminder.title, due_reminder.user_id;
+            RAISE NOTICE 'Processing reminder: % (due at %) for user %', 
+                due_reminder.title,
+                due_reminder.due_at,
+                due_reminder.user_id;
 
             -- Check if user has notifications enabled
             SELECT enabled INTO user_settings
